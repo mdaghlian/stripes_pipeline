@@ -1,0 +1,1 @@
+mcflirt -in sub-01/func/run1.nii.gz -out derivatives/mcflirt/run1_mc -mats -plots -report

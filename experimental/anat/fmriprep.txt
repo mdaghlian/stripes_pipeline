@@ -1,0 +1,28 @@
+mamba create -n fmriprep001 python
+conda activate fmriprep001 
+
+python -m pip install fmriprep-docker
+
+
+cd /Users/marcusdaghlian/projects/pilot-clean-link/derivatives/BIDS
+
+# Create JSON files for all BOLD runs (replace 2.0 with your actual TR)
+for bold in sub-*/func/*_bold.nii*; do
+  json="${bold%.nii*}.json"
+  if [ ! -f "$json" ]; then
+    echo '{"RepetitionTime": 3.0, "TaskName": "colbw"}' > "$json"
+  fi
+done
+
+# Run fmriprep
+fmriprep-docker \
+  /Users/marcusdaghlian/projects/pilot-clean-link/derivatives/BIDS \
+  /Users/marcusdaghlian/projects/pilot-clean-link/derivatives/BIDS/derivatives \
+  participant \
+  --participant-label sub-01 \
+  --fs-subjects-dir  /Users/marcusdaghlian/projects/pilot-clean-link/derivatives/BIDS/derivatives/freesurfer \
+  --output-spaces func \
+  --fs-license-file /Users/marcusdaghlian/projects/pilot-clean-link/code/license.txt \
+  --skip-bids-validation \
+  --omp-nthreads 8 \
+  -w /Users/marcusdaghlian/projects/pilot-clean-link/derivatives/BIDSWF

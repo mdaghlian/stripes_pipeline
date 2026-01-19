@@ -1,0 +1,1 @@
+fslmaths derivatives/mcflirt/run1_mc.nii.gz -Tmean derivatives/mcflirt_tmean/run1_mc_mean.nii.gz

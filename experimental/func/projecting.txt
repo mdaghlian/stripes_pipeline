@@ -1,0 +1,53 @@
+# Something wrong with geometry
+cp meanrun1.nii mrfix.nii
+
+bbregister --s sub-01 --mov mrfix.nii --reg mrfix.dat --bold --init-fsl
+
+lta_convert --inreg mrfix.dat --outlta mrfix.lta --src mrfix.nii --trg $SUBJECTS_DIR/sub-01/mri/orig.mgz
+
+# ok trying 
+mri_vol2vol --mov mrfix.nii \
+            --lta mrfix.lta  \
+            --o mrfixANAT.nii 
+
+
+mri_vol2vol --mov glmSingColmBw.nii \
+            --lta mrfix.lta  \
+            --o glmSingColmBw.nii 
+
+
+# ********* Get V
+
+mri_label2vol --label lh.b14_V1. \
+              --temp ../mri/orig.mgz \
+              --regheader ../mri/orig.mgz \
+              --fillthresh 0.5 \
+              --hemi lh \
+              --subject <subject_id> \
+              --o lh.V1_mask.nii.gz
+
+mri_label2vol --temp $SUBJECTS_DIR/sub-01/mri/orig.mgz \
+    --label lh.b14_V1.label --label rh.b14_V1.label \
+    --label lh.b14_V2.label --label rh.b14_V2.label \
+    --label lh.b14_V3.label --label rh.b14_V3.label \
+    --o b14_V123vol.nii --identity
+
+
+
+
+
+
+
+# ************
+
+mri_vol2surf --src avgcolmbw.nii \
+    --lta mrfix.lta --hemi lh --projfrac 0.5 \
+    --out lh.avgcolmbw.mgh
+
+
+bbregister --s sub-01 --mov meanrun1.nii --reg meanrun1REG.dat --bold --init-fsl
+
+mri_vol2vol --mov meanrun1.nii \
+            --reg meanrun1REG.dat \
+            --o meanrun1ANAT.nii \
+            --no-save-reg # WHY? 

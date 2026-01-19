@@ -1,0 +1,11 @@
+Plan:
+CURRENT GO TO-> just run presurfer & use freesurfer on that
+
+
+
+
+# pybest 
+use jurjens 
+git clone https://github.com/gjheij/pybest.git
+python setup.py develop
+

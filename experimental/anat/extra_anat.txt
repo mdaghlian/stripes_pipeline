@@ -1,0 +1,6 @@
+
+# 
+
+mri_vol2surf --src colminbw.nii --reg run1_mc_tmeanREG.dat --hemi rh --projfrac 0.5 --out rh.blah.mgh
+
+bbregister --s sub-mprageise --mov run1_mc_tmean.nii.gz --reg run1_mc_tmeanREG.dat --bold --init-fsl >> bbregister_cmd.txt
