@@ -22,10 +22,11 @@ def create_benson14_labels(subject, fsdir):
     # Check/generate Benson14 atlas if needed
     varea_files = [os.path.join(surf_dir, f'{h}.benson14_varea.mgz') 
                    for h in ['lh', 'rh']]
+    
     if not all(os.path.exists(f) for f in varea_files):
         print(f"Generating Benson14 atlas...")
         os.system(f'python -m neuropythy atlas {subject} --verbose')
-
+    
     # Process each hemisphere
     for hemi in ['lh', 'rh']:
         varea_file = os.path.join(surf_dir, f'{hemi}.benson14_varea.mgz')
