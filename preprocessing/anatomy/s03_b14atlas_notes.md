@@ -10,5 +10,5 @@ pip install neuropythy
 [2] activate & run 
 ```bash
 conda activate b14atlas
-python s03_b14atlas.py sub-01 --fsdir /Users/marcusdaghlian/pilot-clean-link/derivatives/freesurfer
+python s03_b14atlas.py sub-03strip --fsdir "/Users/marcusdaghlian/CVL Dropbox/Marcus  Daghlian/pilot-clean/derivatives/freesurfer" 
 ```

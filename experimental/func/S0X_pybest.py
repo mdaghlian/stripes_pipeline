@@ -19,16 +19,27 @@ from dpu_mini.fs_tools import dag_load_nverts
 # pybest use jurjens 
 # git clone https://github.com/gjheij/pybest.git
 # python setup.py develop
+'''
+pybest  --subject 01 --out-dir derivatives/pybestdefault/ --space func  \
+    --n-cpus 8 derivatives/fmriprep --save-all --verbose DEBUG
 
+    
+pybest  --subject 01 --out-dir derivatives/pybest20cNohighpass/ --space func  \
+    --n-cpus 8 derivatives/fmriprep --save-all --verbose DEBUG \
+    --n-comps 20 --high-pass 0.0
+
+
+'''
 
 deriv_dir = '/Users/marcusdaghlian/CVL Dropbox/Marcus  Daghlian/pilot-clean/derivatives/'
 fmriprep_dir = opj(deriv_dir, 'BIDS', 'derivatives', 'fmriprep')
-pybest_dir = opj(deriv_dir, 'BIDS', 'derivatives', 'pybest')
-
+pybest_dir = opj(deriv_dir, 'BIDS', 'derivatives', 'pybestpreZ')
 
 sub = 'sub-01'
 sfmp_dir = opj(fmriprep_dir, sub)
 spyb_dir = opj(pybest_dir, sub)
+if not os.path.exists(spyb_dir):
+    os.makedirs(spyb_dir)
 
 # [1] Find bold files 
 bold_files = dag_find_file_in_folder(
@@ -38,9 +49,6 @@ bold_files = dag_find_file_in_folder(
 
 )
 
-spybpreZ_dir = opj(spyb_dir, 'preZ')
-if not os.path.exists(spybpreZ_dir):
-    os.makedirs(spybpreZ_dir)
 # For unzscoring... 
 for f in bold_files: 
     # Need to save the mean, and the std
@@ -52,7 +60,7 @@ for f in bold_files:
     tmean = np.mean(tdata, axis=-1) # mean over time 
     tstd = np.std(tdata, axis=-1)
 
-    np.save(f'{tbase_name}_mean.npy', tmean)
-    np.save(f'{tbase_name}_std.npy', tstd)
+    np.save(opj(spyb_dir, f'{tbase_name}_mean.npy'), tmean)
+    np.save(opj(spyb_dir, f'{tbase_name}_std.npy'), tstd)
 
 # Now run pybest 

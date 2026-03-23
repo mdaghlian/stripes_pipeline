@@ -1,0 +1,131 @@
+
+# run laynii script on freesurfer file from srikash 
+# get the 
+export SUBJECTS_DIR=/Users/marcusdaghlian/projects/dp-clean-link/pilot-clean/derivatives/freesurfer
+label_dir=$SUBJECTS_DIR/sub-03/label/custom
+mri_label2vol \
+    --temp $SUBJECTS_DIR/sub-01/mri/orig.mgz  \
+    --label $label_dir/lh.b14_V1.label \
+    --label $label_dir/rh.b14_V1.label \
+    --label $label_dir/lh.b14_V2.label \
+    --label $label_dir/lh.b14_V2.label \
+    --label $label_dir/lh.b14_V3.label \
+    --label $label_dir/lh.b14_V3.label \
+    --o b14_V123vol.nii --identity
+# dilate
+fslmaths b14_V123vol.nii -dilM -dilM -dilM -dilM -dilM -dilM b14_V123voldilM6.nii 
+# match resolution
+mri_convert --voxsize 0.3 0.3 0.3 \
+            --resample_type cubic \
+            -rl both_laynii_rim.nii.gz \
+            b14_V2voldilm3bin.nii.gz \
+            b14_V123voldilm6_0pt3.nii.gz
+fslmaths b14_V123voldilm6_0pt3.nii.gz -bin b14_V123voldilm6bin_0pt3.nii.gz
+
+
+
+
+cp meansub-03_task-task-colbw_run-01_bold.nii mrfix.nii
+SUBJECT='sub-03'
+export SUBJECTS_DIR=~/projects/pilot-clean-link/derivatives/freesurfer
+flirt \
+    -in mrfix.nii \
+    -ref brain.nii \
+    -cost mutualinfo \
+    -omat initial_reg.mat 
+
+# Convert initial FLIRT output matrix to FreeSurfer format
+tkregister2 --s $SUBJECT --mov mrfix.nii \
+            --targ brain.nii \
+            --fsl initial_reg.mat \
+            --reg initial_reg.dat \
+            --noedit
+
+
+bbregister \
+    --s "$SUBJECT" \
+    --mov "mrfix.nii" \
+    --reg bbreg.dat \
+    --fslmat bbreg.mat \
+    --bold
+flirt \
+    -in colmbw10runs_zmap \
+    -ref brain.nii \
+    -applyxfm -init bbreg.mat \
+    -out  colmbw10runs_zmap
+
+
+mri_vol2surf --src colmbw10runs_pmap.nii \
+    --reg bbreg.dat --hemi lh --projfrac-avg 0 1 0.5 \
+    --out lh.colmbw10runs_pmap.mgh
+
+
+
+
+
+
+
+
+
+
+        
+
+bbregister --s sub-03 --mov mrfix.nii --reg mrfix12.lta --bold --init-fsl --12
+# Gives us .lta file straight away
+
+lta_convert --inreg mrfix.dat --outlta mrfix.lta --src mrfix.nii --trg $SUBJECTS_DIR/sub-01/mri/orig.mgz
+
+# ok trying 
+mri_vol2vol --mov mrfix.nii \
+            --lta mrfix.lta  \
+            --o mrfixANAT12.nii 
+
+
+mri_vol2vol --mov pybestDFColmBw.nii \
+            --lta mrfix.lta  \
+            --o pybestDFColmBwANAT.nii 
+
+
+# Make a binary file - in the anatomy space ... 
+fslmaths mrfix.nii -uthr 0 -binv mrfix_bin.nii
+mri_vol2vol --mov mrfix.nii --lta mrfix.lta  --o mrfix_ANAT.nii 
+
+# ********* Get V
+
+mri_label2vol --label lh.b14_V1. \
+              --temp ../mri/orig.mgz \
+              --regheader ../mri/orig.mgz \
+              --fillthresh 0.5 \
+              --hemi lh \
+              --subject <subject_id> \
+              --o lh.V1_mask.nii.gz
+
+mri_label2vol --temp $SUBJECTS_DIR/sub-01/mri/orig.mgz \
+    --label lh.b14_V1.label --label rh.b14_V1.label \
+    --label lh.b14_V2.label --label rh.b14_V2.label \
+    --label lh.b14_V3.label --label rh.b14_V3.label \
+    --o b14_V123vol.nii --identity
+
+
+mri_label2vol --temp $SUBJECTS_DIR/sub-01/mri/orig.mgz \
+    --label lh.b14_V2.label --label rh.b14_V2.label \
+    --o b14_V2vol.nii --identity
+
+
+
+
+
+
+# ************
+
+mri_vol2surf --src glmsings03.nii \
+    --lta mrfix.lta --hemi lh --projfrac 0.5 \
+    --out lh.avgcolmbw.mgh
+
+
+bbregister --s sub-01 --mov meanrun1.nii --reg meanrun1REG.dat --bold --init-fsl
+
+mri_vol2vol --mov meanrun1.nii \
+            --reg meanrun1REG.dat \
+            --o meanrun1ANAT.nii \
+            --no-save-reg # WHY? 

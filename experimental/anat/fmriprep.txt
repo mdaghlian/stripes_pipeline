@@ -17,11 +17,11 @@ done
 # Run fmriprep
 fmriprep-docker \
   /Users/marcusdaghlian/projects/pilot-clean-link/derivatives/BIDS \
-  /Users/marcusdaghlian/projects/pilot-clean-link/derivatives/BIDS/derivatives \
+  /Users/marcusdaghlian/projects/pilot-clean-link/derivatives/BIDS/derivatives/fmriprep \
   participant \
   --participant-label sub-01 \
   --fs-subjects-dir  /Users/marcusdaghlian/projects/pilot-clean-link/derivatives/BIDS/derivatives/freesurfer \
-  --output-spaces func \
+  --output-spaces func T1w \
   --fs-license-file /Users/marcusdaghlian/projects/pilot-clean-link/code/license.txt \
   --skip-bids-validation \
   --omp-nthreads 8 \

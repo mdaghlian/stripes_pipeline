@@ -1,7 +1,37 @@
-# Something wrong with geometry
-cp meanrun1.nii mrfix.nii
+# Something keeps going wrong
+export SUBJECTS_DIR=~/projects/pilot-clean-link/derivatives/freesurfer
+SUBJECT='sub-03'
+mov="runmean.nii.gz"
+anat_ref="anat_ref.nii.gz" # copied from freesurfer/sub-03/mri/brain.mgz
 
-bbregister --s sub-03 --mov mrfix.nii --reg mrfix.dat --bold --init-fsl 
+bbregister \
+    --s "$SUBJECT" \
+    --mov $mov \
+    --reg reg_bb.dat \
+    --fslmat reg_bb.mat \
+    --bold
+
+mri_vol2vol --mov $mov \
+    --reg reg_bb.dat --o rmBB.nii.gz
+
+# Version 2
+lta_convert --inreg reg_bb.dat \
+    --outlta reg_bb.lta --src $mov \
+    --trg $anat_ref
+
+mri_vol2vol --mov $mov \
+    --lta reg_bb.lta --o rmLTA.nii.gz 
+
+
+
+
+
+
+
+
+        
+
+bbregister --s sub-03 --mov mrfix.nii --reg mrfix12.lta --bold --init-fsl --12
 # Gives us .lta file straight away
 
 lta_convert --inreg mrfix.dat --outlta mrfix.lta --src mrfix.nii --trg $SUBJECTS_DIR/sub-01/mri/orig.mgz
@@ -38,15 +68,9 @@ mri_label2vol --temp $SUBJECTS_DIR/sub-01/mri/orig.mgz \
     --o b14_V123vol.nii --identity
 
 
-label_dir=$SUBJECTS_DIR/sub-03/label/custom
 mri_label2vol --temp $SUBJECTS_DIR/sub-01/mri/orig.mgz \
-    --label $label_dir/lh.b14_V1.label \
-    --label $label_dir/rh.b14_V1.label \
-    --label $label_dir/lh.b14_V2.label \
-    --label $label_dir/lh.b14_V2.label \
-    --label $label_dir/lh.b14_V3.label \
-    --label $label_dir/lh.b14_V3.label \
-    --o b14_V123vol.nii --identity
+    --label lh.b14_V2.label --label rh.b14_V2.label \
+    --o b14_V2vol.nii --identity
 
 
 

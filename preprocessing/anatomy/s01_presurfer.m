@@ -1,32 +1,42 @@
-%% MP2RAGE pre-processing Start-to-finish - based on presurfer pipeline
-MP2SOURCE_PATH='/Users/marcusdaghlian/projects/pilot-clean-link/derivatives/MP2RAGE_source/sub-01';
-UNI=fullfile(MP2SOURCE_PATH,'sub-01_MP2RAGE_uni.nii');
-INV2=fullfile(MP2SOURCE_PATH,'sub-01_MP2RAGE_inv2.nii');
-% ########################################################################
-% STEP - 0 : (optional) MPRAGEise UNI
-% ########################################################################
-UNI_out = presurf_MPRAGEise(INV2,UNI); % Outputs presurf_MPRAGEise directory
+%% MP2RAGE Pre-processing Pipeline - Optimized for FreeSurfer
+% Complete pipeline with background noise removal
+% Based on presurfer workflow and RobustCombination method
+%
+% Pipeline order:
+% 1. Process INV2 -> bias correct -> create brain mask
+% 2. MPRAGEise: multiply denoised UNI with normalized bias-corrected INV2
+% 3. Bias correct the MPRAGEised image
+% 4. SANLM denoise the bias-corrected MPRAGEised image
 
-% ########################################################################
-% STEP - 1 : Pre-process INV2 to get STRIPMASK
-% ########################################################################
-presurf_INV2(INV2); % Outputs presurf_INV2 directory
+%% Configuration
+MP2SOURCE_PATH = '/Users/marcusdaghlian/projects/pilot-clean-link/derivatives/MP2RAGE_preprocess/sub-03b';
+UNI = fullfile(MP2SOURCE_PATH, 'sub-03_acq-MP2RAGE_UNI.nii');
+INV1 = fullfile(MP2SOURCE_PATH, 'sub-03_acq-MP2RAGE_inv-1.nii');
+INV2 = fullfile(MP2SOURCE_PATH, 'sub-03_acq-MP2RAGE_inv-2.nii');
+T1map = fullfile(MP2SOURCE_PATH, 'sub-03_acq-MP2RAGE_T1map.nii');
 
-% ########################################################################
-% STEP - 3 : Pre-process UNI to get BRAINMASK
-% ########################################################################
-% Change UNI path to that of the MPRAGEised UNI if Step-0 was done
-if exist('UNI_out','var')
-    presurf_UNI(UNI_out); % Outputs presurf_UNI directory
-else
-    presurf_UNI(UNI);
-end
+%% Run Optimized Pipeline
+% Step 1: process the INV2 image (bias correct, & create strip mask)
+[INV2bc, strip_mask]=presurf_INV2(INV2);
 
-% ########################################################################
-% STEP - 4 : Prepare for Freesurfer
-% ########################################################################
+% Step 2: MPRAGEise using denoised UNI
+UNI_out = presurf_MPRAGEise(INV2bc, UNI);
 
-% Load the MPRAGEised UNI image and STRIPMASK in ITK-SNAP
-% Clean the mask in the regions-of-interest and save
-% Multiply the MPRAGEised UNI with the manually edited STRIPMASK
-% Supply to recon-all
+% Step 3: Bias correction
+UNI_out = presurf_biascorrect(UNI_out);
+
+
+% Clean up files for final denoised path
+mkdir(MP2SOURCE_PATH,'presurf_final_outputs')
+% copy strip mask, uni out
+% Copy the strip mask and UNI_out to the final outputs directory
+copyfile(strip_mask, fullfile(MP2SOURCE_PATH, 'presurf_final_outputs', 'strip_mask.nii'));
+copyfile(UNI_out, fullfile(MP2SOURCE_PATH, 'presurf_final_outputs', 'UNI_out.nii'));
+
+disp('PresurferB pipeline complete. Final outputs saved in presurf_final_outputs folder.');
+disp('Now check the mask & uni visually with ITK snap, and make necessary edits')
+disp('Then mask the UNI_out, and pass to freesurfer recon-all with -hires flag');
+
+
+% Step 4: SANLM denoising - not needed 
+% UNI_out = presurf_SANLM(UNI_out);

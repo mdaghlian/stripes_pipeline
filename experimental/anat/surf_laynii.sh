@@ -1,0 +1,504 @@
+#!/bin/bash
+
+# Simple formatting
+bold=$(tput bold)
+normal=$(tput sgr0)
+
+function Help() {
+    cat <<HELP
+
+Basic usage:
+
+$(basename $0) ${bold}-d${normal} Subjects directory ${bold} ${bold}-s${normal} Subject ID
+
+--------------------------------------------------------------------------------
+Required input arguments:
+
+    -d: Subjects directory (Specify as /path/to/data/subjects)
+
+    -s: Subject ID (Specify as subjx)
+
+Optional input arguments:
+
+    -m: Metric to use (Specify as "t" for thickness or "d" for distance) Default = d
+
+    -r: Resolution in mm (Specify as float) Default = 0.3
+
+    -p: Pial expand factor (Specify a positive value) Default = 0.3
+
+    -w: White shrink factor (Specify a negative value) Default = -0.3
+
+    -n: Number of layers (Specify a postive (odd) integer) Default = 11
+
+    -x: Layering model (Specify as "d" for equidistance or "v" for equivolume) Default = v
+
+    -l: Do NOT execute LAYNII (Specify as 0) Default = 1
+
+--------------------------------------------------------------------------------
+
+Expanded usage:
+
+$(basename $0) ${bold}-d${normal} Subjects directory ${bold} ${bold}-s${normal} Subject ID ${bold} -r${normal} Resolution ${bold}-p${normal} Pial expand factor ${bold}-w${normal} White shrink factor ${bold}-m${normal} Metric preference ${bold}-n${normal} Number of layers ${bold}-x${normal} Layering model ${bold}-l${normal} No LAYNII 
+
+--------------------------------------------------------------------------------
+
+Example 1: (a) Typical, default use case
+Create all intermediate surfaces and files needed to obtain rim files 
+that are LAYNII compatible and run LAYNII equivolumnar layering. 
+
+$(basename $0) -d /path/to/reconned_subjects -s subjx
+
+           (b) Typical, default use case without LAYNII
+Same as Ex. 1a but DO NOT run LAYNII. 
+
+$(basename $0) -d /path/to/reconned_subjects -s subjx -l 0
+
+Example 2:     Same as Ex. 1a but get 21 equidistant layers
+
+$(basename $0) -d /path/to/reconned_subjects -s subjx -x d -n 21
+
+Example 3:     Command with custom resolution, distance factors and layers
+
+$(basename $0) -d /path/to/reconned_subjects -s subjx -r 0.25 -p 0.5 -w -0.5 -n 21
+
+--------------------------------------------------------------------------------
+Script was created by: Sriranga Kashyap (06-2023)
+--------------------------------------------------------------------------------
+Only requires Freesurfer & LAYNII to be installed & defined in your environment.
+--------------------------------------------------------------------------------
+Freesufer can be downloaded here: https://surfer.nmr.mgh.harvard.edu/fswiki/DownloadAndInstall
+LAYNII can be downloaded here: https://github.com/layerfMRI/LAYNII
+References to cite:
+    1) https://pubmed.ncbi.nlm.nih.gov/9931268/
+    2) https://pubmed.ncbi.nlm.nih.gov/22248573/
+    3) https://pubmed.ncbi.nlm.nih.gov/33991698/
+--------------------------------------------------------------------------------
+
+HELP
+    exit 1
+}
+
+################################################################################
+function reportParameters() {
+    cat <<REPORTPARAMETERS
+
+--------------------------------------------------------------------------------
+    ${bold} Processes Initialised ${normal}
+--------------------------------------------------------------------------------
+    SUBJECTS_DIR is $fs_subj_dir
+
+    Subject ID         : ${bold} ${subj_id} ${normal}
+    Resolution         : ${bold} ${newvox} mm iso ${normal}
+    Expand factor      : ${bold} ${expand_factor} ${normal}
+    Shrink factor      : ${bold} ${shrink_factor} ${normal}
+    Run LAYNII         : ${bold} ${laynii_status} ${normal}
+    
+--------------------------------------------------------------------------------
+
+REPORTPARAMETERS
+}
+
+if [[ "$1" == "-h" || $# -eq 0 ]]; then
+    Help >&2
+fi
+
+# DEFAULTS
+newvox=0.3
+metric=d
+expand_factor=0.3
+shrink_factor=-0.3
+layers=11
+model=v
+
+# PARSE INPUT ARGUMENTS
+while getopts "d:s:m:r:p:w:n:x:l:" OPT; do
+    case $OPT in
+    h) #help
+        Help
+        exit 0
+        ;;
+    d) # fs directory path
+        fs_subj_dir=$OPTARG
+        ;;
+    s) # subject id
+        subj_id=$OPTARG
+        ;;
+    r) # voxel resolution in mm
+        newvox=$OPTARG
+        ;;
+    m) # metric use
+        metric=$OPTARG
+        ;;
+    p) # expand factor
+        expand_factor=$OPTARG
+        ;;
+    w) # shrink factor
+        shrink_factor=$OPTARG
+        ;;
+    n) # layer number
+        layers=$OPTARG
+        ;;
+    x) # layer model
+        model=$OPTARG
+        ;;
+    l) # stop Laynii
+        stop_laynii=$OPTARG
+        ;;
+    \?) # report error
+        echo "$HELP" >&2
+        exit 1
+        ;;
+    esac
+done
+
+echo " "
+echo "--------------------------------------------------------"
+echo "                   ${bold} surf_laynii ${normal}                      "
+echo "--------------------------------------------------------"
+echo " "
+start_time0=$(date +%s)
+
+# Set environment variable
+export SUBJECTS_DIR=$fs_subj_dir
+
+# Check LAYNII execution status
+if [[ -z "$stop_laynii" ]]; then
+    stop_laynii=0
+    laynii_status="yes"
+elif [[ "$stop_laynii" = "0" ]]; then
+    laynii_status="yes"
+else
+    laynii_status="no"
+fi
+
+# Create a laynii folder
+laynii_folder="${fs_subj_dir}/${subj_id}/laynii"
+if [ ! -d "$laynii_folder" ]; then
+    echo " ++++ Creating folder: $laynii_folder"
+    mkdir "$laynii_folder"
+else
+    echo " ++++ $laynii_folder exists."
+fi
+
+# REPORT INPUT PARAMETERS
+reportParameters
+
+########### STEP 1
+# Convert brain final surfaces to NIfTI format & upsample
+brain_finalsurfs_file="${fs_subj_dir}/${subj_id}/mri/brain.finalsurfs.mgz"
+brain_finalsurfs_upsampled="${fs_subj_dir}/${subj_id}/laynii/brain_finalsurfs_upsampled.nii.gz"
+
+if [ ! -f "$brain_finalsurfs_upsampled" ]; then
+    # Run mri_convert only if the output file does not exist
+    echo " ++++ Resampling to $newvox mm iso ..."
+    start_time=$(date +%s)
+    mri_convert \
+        --voxsize $newvox $newvox $newvox \
+        --resample_type cubic $brain_finalsurfs_file \
+        "${brain_finalsurfs_upsampled}" >/dev/null 2>&1
+    end_time=$(date +%s)
+    echo "      Finished in $((end_time - start_time)) seconds"
+else
+    echo " ++++ $brain_finalsurfs_upsampled exists."
+fi
+
+########### STEP 2
+# Expand surfaces by distance or thickness
+echo " ++++ Generating new boundary surfaces ..."
+echo "   -> Patience .... "
+for hemi in {lh,rh}; do
+
+    white_surf="${fs_subj_dir}/${subj_id}/surf/${hemi}.white"
+
+    pial_surf="${fs_subj_dir}/${subj_id}/surf/${hemi}.pial"
+
+    csfb_surf="${fs_subj_dir}/${subj_id}/laynii/${hemi}.pial_expand_csfb"
+
+    ogmb_surf="${fs_subj_dir}/${subj_id}/laynii/${hemi}.pial_expand_ogmb"
+
+    wmb_surf="${fs_subj_dir}/${subj_id}/laynii/${hemi}.white_shrink_wmb"
+
+    igmb_surf="${fs_subj_dir}/${subj_id}/laynii/${hemi}.white_shrink_igmb"
+
+    if [[ "$metric" = "t" ]]; then
+
+        if [[ ! -f "${pial_surf}" ]]; then
+            pial_surf="${fs_subj_dir}/${subj_id}/surf/${hemi}.pial.T2"
+            if [[ ! -f "${pial_surf}" ]]; then
+                pial_surf="${fs_subj_dir}/${subj_id}/surf/${hemi}.pial.T1"
+            fi
+        fi
+
+        if [[ ! -f "${csfb_surf}" ]]; then
+            # Run mris_expand for each input file
+            start_time=$(date +%s)
+            mris_expand \
+                -thickness \
+                "$pial_surf" \
+                $expand_factor \
+                "$csfb_surf" >/dev/null 2>&1
+            echo "   -> Generated "${fs_subj_dir}/${subj_id}/laynii/${hemi}.pial_expand_csfb""
+            end_time=$(date +%s)
+            echo "      Finished in $((end_time - start_time)) seconds"
+
+        fi
+
+        if [[ ! -f "${ogmb_surf}" ]]; then
+            expand_factor_in=$(echo "scale=2; $expand_factor - 0.1" | bc)
+            start_time=$(date +%s)
+            mris_expand \
+                -thickness \
+                "$pial_surf" \
+                "$expand_factor_in" \
+                "$ogmb_surf" >/dev/null 2>&1
+            echo "   -> Generated "${fs_subj_dir}/${subj_id}/laynii/${hemi}.pial_expand_ogmb""
+            end_time=$(date +%s)
+            echo "      Finished in $((end_time - start_time)) seconds"
+        fi
+
+        if [[ ! -f "${wmb_surf}" ]]; then
+            start_time=$(date +%s)
+            mris_expand \
+                -thickness \
+                "$white_surf" \
+                $shrink_factor \
+                "$wmb_surf" >/dev/null 2>&1
+            echo "   -> Generated "${fs_subj_dir}/${subj_id}/laynii/${hemi}.white_expand_wmb""
+            end_time=$(date +%s)
+            echo "      Finished in $((end_time - start_time)) seconds"
+
+        fi
+
+        if [[ ! -f "${igmb_surf}" ]]; then
+            shrink_factor_in=$(echo "scale=2; $shrink_factor + 0.1" | bc)
+            start_time=$(date +%s)
+            mris_expand \
+                -thickness \
+                "$white_surf" \
+                "$shrink_factor_in" \
+                "$igmb_surf" >/dev/null 2>&1
+            echo "   -> Generated "${fs_subj_dir}/${subj_id}/laynii/${hemi}.white_expand_igmb""
+            end_time=$(date +%s)
+            echo "      Finished in $((end_time - start_time)) seconds"
+        fi
+
+    elif [[ -z "$metric" || "$metric" = "d" ]]; then
+
+        if [[ ! -f "${pial_surf}" ]]; then
+            pial_surf="${fs_subj_dir}/${subj_id}/surf/${hemi}.pial.T2"
+            if [[ ! -f "${pial_surf}" ]]; then
+                pial_surf="${fs_subj_dir}/${subj_id}/surf/${hemi}.pial.T1"
+            fi
+        fi
+
+        if [[ ! -f "${csfb_surf}" ]]; then
+            # Run mris_expand for each input file
+            start_time=$(date +%s)
+            mris_expand \
+                "$pial_surf" \
+                $newvox \
+                "$csfb_surf" >/dev/null 2>&1
+            echo "   -> Generated "${fs_subj_dir}/${subj_id}/laynii/${hemi}.pial_expand_csfb""
+            end_time=$(date +%s)
+            echo "      Finished in $((end_time - start_time)) seconds"
+
+        fi
+
+        if [[ ! -f "${ogmb_surf}" ]]; then
+            start_time=$(date +%s)
+            cp \
+                "$pial_surf" \
+                "$ogmb_surf" >/dev/null 2>&1
+            echo "   -> Generated "${fs_subj_dir}/${subj_id}/laynii/${hemi}.pial_expand_ogmb""
+            end_time=$(date +%s)
+            echo "      Finished in $((end_time - start_time)) seconds"
+        fi
+
+        if [[ ! -f "${wmb_surf}" ]]; then
+            start_time=$(date +%s)
+            mris_expand \
+                "$white_surf" \
+                $shrink_factor \
+                "$wmb_surf" >/dev/null 2>&1
+            echo "   -> Generated "${fs_subj_dir}/${subj_id}/laynii/${hemi}.white_shrink_wmb""
+            end_time=$(date +%s)
+            echo "      Finished in $((end_time - start_time)) seconds"
+
+        fi
+
+        if [[ ! -f "${igmb_surf}" ]]; then
+            start_time=$(date +%s)
+            cp \
+                "$white_surf" \
+                "$igmb_surf" >/dev/null 2>&1
+            echo "   -> Generated "${fs_subj_dir}/${subj_id}/laynii/${hemi}.white_shrink_igmb""
+            end_time=$(date +%s)
+            echo "      Finished in $((end_time - start_time)) seconds"
+        fi
+    fi
+done
+
+echo " ++++ Generating new boundary volumes ..."
+# Define the input and output paths for mris_fill
+boundary_surfs=(
+    "${fs_subj_dir}/${subj_id}/laynii/lh.pial_expand_csfb"
+    "${fs_subj_dir}/${subj_id}/laynii/rh.pial_expand_csfb"
+    "${fs_subj_dir}/${subj_id}/laynii/lh.pial_expand_ogmb"
+    "${fs_subj_dir}/${subj_id}/laynii/rh.pial_expand_ogmb"
+    "${fs_subj_dir}/${subj_id}/laynii/lh.white_shrink_wmb"
+    "${fs_subj_dir}/${subj_id}/laynii/rh.white_shrink_wmb"
+    "${fs_subj_dir}/${subj_id}/laynii/lh.white_shrink_igmb"
+    "${fs_subj_dir}/${subj_id}/laynii/rh.white_shrink_igmb"
+)
+
+filled_files=(
+    "${fs_subj_dir}/${subj_id}/laynii/lh_pial_expand_filled_csfb.nii.gz"
+    "${fs_subj_dir}/${subj_id}/laynii/rh_pial_expand_filled_csfb.nii.gz"
+    "${fs_subj_dir}/${subj_id}/laynii/lh_pial_expand_filled_ogmb.nii.gz"
+    "${fs_subj_dir}/${subj_id}/laynii/rh_pial_expand_filled_ogmb.nii.gz"
+    "${fs_subj_dir}/${subj_id}/laynii/lh_white_shrink_filled_wmb.nii.gz"
+    "${fs_subj_dir}/${subj_id}/laynii/rh_white_shrink_filled_wmb.nii.gz"
+    "${fs_subj_dir}/${subj_id}/laynii/lh_white_shrink_filled_igmb.nii.gz"
+    "${fs_subj_dir}/${subj_id}/laynii/rh_white_shrink_filled_igmb.nii.gz"
+)
+
+start_time=$(date +%s)
+# Run mris_fill for each input file
+for ((i = 0; i < ${#boundary_surfs[@]}; i++)); do
+    input_file=${boundary_surfs[$i]}
+    output_file=${filled_files[$i]}
+
+    if [[ ! -f "$output_file" ]]; then
+        # Run mris_fill command
+        start_time=$(date +%s)
+        mris_fill \
+            -t "$brain_finalsurfs_upsampled" \
+            -r "$newvox" \
+            "$input_file" \
+            "$output_file" >/dev/null 2>&1
+        echo "   -> Generated "$output_file""
+        end_time=$(date +%s)
+        echo "      Finished in $((end_time - start_time)) seconds"
+
+    fi
+done
+
+echo "   -> Generated "${fs_subj_dir}/${subj_id}/laynii/*_expand_filled files.""
+end_time=$(date +%s)
+echo "      Finished in $((end_time - start_time)) seconds"
+
+echo " ++++ Generating laynii formatted volumes ..."
+start_time=$(date +%s)
+for hemi in {lh,rh}; do
+    if [[ ! -f "${fs_subj_dir}/${subj_id}/laynii/${hemi}_laynii_csfb.nii.gz" ]]; then
+        # Calculate LAYNII_CSF
+        fscalc \
+            "${fs_subj_dir}/${subj_id}/laynii/${hemi}_pial_expand_filled_csfb.nii.gz" \
+            sub \
+            "${fs_subj_dir}/${subj_id}/laynii/${hemi}_pial_expand_filled_ogmb.nii.gz" \
+            mul 1 \
+            --o "${fs_subj_dir}/${subj_id}/laynii/${hemi}_laynii_csfb.nii.gz" >/dev/null 2>&1
+    fi
+    if [[ ! -f "${fs_subj_dir}/${subj_id}/laynii/${hemi}_laynii_wmb.nii.gz" ]]; then
+        # Calculate LAYNII_WM
+        fscalc \
+            "${fs_subj_dir}/${subj_id}/laynii/${hemi}_white_shrink_filled_igmb.nii.gz" \
+            sub \
+            "${fs_subj_dir}/${subj_id}/laynii/${hemi}_white_shrink_filled_wmb.nii.gz" \
+            mul 2 \
+            --o "${fs_subj_dir}/${subj_id}/laynii/${hemi}_laynii_wmb.nii.gz" >/dev/null 2>&1
+    fi
+    if [[ ! -f "${fs_subj_dir}/${subj_id}/laynii/${hemi}_laynii_gm_ribbon.nii.gz" ]]; then
+        # Calculate LAYNII_GM ribbon
+        fscalc \
+            "${fs_subj_dir}/${subj_id}/laynii/${hemi}_pial_expand_filled_ogmb.nii.gz" \
+            sub "${fs_subj_dir}/${subj_id}/laynii/${hemi}_white_shrink_filled_igmb.nii.gz" \
+            mul 3 \
+            --o "${fs_subj_dir}/${subj_id}/laynii/${hemi}_laynii_gm_ribbon.nii.gz" >/dev/null 2>&1
+    fi
+    if [[ ! -f "${fs_subj_dir}/${subj_id}/laynii/${hemi}_laynii_rim.nii.gz" ]]; then
+        # Calculate LAYNII_LH_RIM by adding LAYNII_GM, LAYNII_WM, and LAYNII_CSF
+        fscalc \
+            "${fs_subj_dir}/${subj_id}/laynii/${hemi}_laynii_csfb.nii.gz" \
+            add \
+            "${fs_subj_dir}/${subj_id}/laynii/${hemi}_laynii_wmb.nii.gz" \
+            add \
+            "${fs_subj_dir}/${subj_id}/laynii/${hemi}_laynii_gm_ribbon.nii.gz" \
+            --o "${fs_subj_dir}/${subj_id}/laynii/${hemi}_laynii_rim.nii.gz" >/dev/null 2>&1
+    fi
+done
+
+if [[ ! -f "${fs_subj_dir}/${subj_id}/laynii/both_laynii_rim.nii.gz" ]]; then
+    # Calculate LAYNII_LH_RIM by adding LAYNII_GM, LAYNII_WM, and LAYNII_CSF
+    fscalc \
+        "${fs_subj_dir}/${subj_id}/laynii/lh_laynii_rim.nii.gz" \
+        add \
+        "${fs_subj_dir}/${subj_id}/laynii/rh_laynii_rim.nii.gz" \
+        --o "${fs_subj_dir}/${subj_id}/laynii/both_laynii_rim.nii.gz" >/dev/null 2>&1
+fi
+echo "   -> Generated laynii rim files."
+end_time=$(date +%s)
+echo "      Finished in $((end_time - start_time)) seconds"
+rm -rf tmp.*
+
+if [[ "$laynii_status" = "yes" ]]; then
+    echo " ++++ Running LAYNII now"
+    start_time=$(date +%s)
+    if [[ "$model" = "v" ]]; then
+        echo "   -> Using equivolume model. "
+        echo "   -> Estimating $layers layers."
+        echo "   -> More patience .... "
+
+        for hemi in {lh,rh}; do
+
+            # Perform LN2_LAYERS command on LAYNII_LH_RIM (if it crashes, reduce layer number, resolution or both)
+            LN2_LAYERS \
+                -rim "${fs_subj_dir}/${subj_id}/laynii/${hemi}_laynii_rim.nii.gz" \
+                -nr_layers $layers \
+                -equivol \
+                -no_smooth \
+                -incl_borders >/dev/null 2>&1
+
+        done
+
+        # Perform LN2_LAYERS command on BOTH_LAYNII_RIM (if it crashes, reduce layer number, resolution or both)
+        LN2_LAYERS \
+            -rim "${fs_subj_dir}/${subj_id}/laynii/both_laynii_rim.nii.gz" \
+            -nr_layers $layers \
+            -equivol \
+            -no_smooth \
+            -incl_borders >/dev/null 2>&1
+
+    elif [[ "$model" = "d" ]]; then
+        echo "   -> Using equidistance model. "
+        echo "   -> Estimating $layers layers."
+        echo "   -> More patience .... "
+
+        for hemi in {lh,rh}; do
+
+            # Perform LN2_LAYERS command on LAYNII_LH_RIM (if it crashes, reduce layer number, resolution or both)
+            LN2_LAYERS \
+                -rim "${fs_subj_dir}/${subj_id}/laynii/${hemi}_laynii_rim.nii.gz" \
+                -nr_layers $layers \
+                -incl_borders >/dev/null 2>&1
+
+        done
+
+        # Perform LN2_LAYERS command on BOTH_LAYNII_RIM (if it crashes, reduce layer number, resolution or both)
+        LN2_LAYERS \
+            -rim "${fs_subj_dir}/${subj_id}/laynii/both_laynii_rim.nii.gz" \
+            -nr_layers $layers \
+            -incl_borders >/dev/null 2>&1
+    fi
+
+else
+    echo " ++++ Not running LAYNII."
+fi
+end_time=$(date +%s)
+echo "      Finished in $((end_time - start_time)) seconds"
+
+echo " "
+echo "--------------------------------------------------------"
+echo "      surf_laynii finished in $((end_time - start_time0)) seconds     "
+echo "--------------------------------------------------------"
+echo " "

@@ -1,5 +1,5 @@
-s00_preproc_paths;
-func_paths = '/Users/marcusdaghlian/projects/pilot-clean-link/derivatives/spm_align/sub-01';
+% s00_preproc_paths;
+func_paths = '/Users/marcusdaghlian/projects/pilot-clean-link/derivatives/spm_align/sub-ht2/';
 % Check if directory exists
 if ~exist(func_paths, 'dir')
     error('Directory does not exist!');
@@ -17,5 +17,5 @@ spm_realign(files);
 flags.mean = 1;
 flags.which = 2; % reslice all images
 flags.interp = 4; % 4th degree B-spline (good quality)
+% flags.estimate
 spm_reslice(files, flags);
-
