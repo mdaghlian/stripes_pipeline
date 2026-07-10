@@ -42,7 +42,7 @@ python s01_mp2rage_preproc.py \
 
 ```bash
 uni_mpragised=$(find $MP2RAGE_OUT/ -name "*UNI-mpragised.nii.gz")
-brain_mask=$(find $MP2RAGE_OUT/ -name "*_brainmask.nii")
+brain_mask=$(find $MP2RAGE_OUT/ -name "*_brainmask.nii*")
 
 python s02_mp2rage_fs.py \
     --subject $SUB \

@@ -8,14 +8,14 @@ Stage ordering
 --------------
     Stage 3   – recon-all -autorecon1 -noskullstrip
                   Conforms the full-head UNI input, runs Talairach registration.
-                  FreeSurfer's own skull stripping is skipped — the nighres
-                  mask injected in Stage 4a is superior for 7T MP2RAGE data.
-                  The full-head image is required here so that Talairach
+                  FreeSurfer's own skull stripping is skipped — use a custom brain mask 
+                  which is injected in Stage 4a
+                  This first full-head image is required so that Talairach
                   registration has correct head geometry to work from.
 
-    Stage 4a  – Inject nighres brain mask → brainmask.mgz
-                  Resamples the nighres mask to T1.mgz space (nearest-neighbour),
-                  then computes:  brainmask = (nighres_mask > 0) * T1
+    Stage 4a  – Inject brain mask → brainmask.mgz
+                  Resamples the brain mask to T1.mgz space (nearest-neighbour),
+                  then computes:  brainmask = (brainmask > 0) * T1
                   This zeros non-brain voxels while preserving T1 intensities —
                   the format FreeSurfer expects.  Also writes
                   brain.finalsurfs.manedit.mgz.  Backups created before any
@@ -38,7 +38,7 @@ Why this order?
 ---------------
 autorecon1 must receive a full-head image — Talairach registration relies on
 overall head shape and proportions to find the AC-PC line.  Passing a
-skull-stripped image can degrade or break this registration.  The nighres brain
+skull-stripped image can degrade or break this registration.  The brain
 mask is injected immediately after autorecon1 so that autorecon2 uses our mask
 rather than FreeSurfer's skull-strip result.  autorecon3 then runs on the
 finished surfaces.
@@ -130,7 +130,7 @@ def run_autorecon1(
     Run recon-all -autorecon1 -noskullstrip.
 
     Uses the full-head MPRAGEised UNI image.  FreeSurfer's own skull stripping
-    is deliberately skipped — the nighres mask injected in Stage 4a is superior
+    is deliberately skipped — the mask injected in Stage 4a is superior
     for 7T MP2RAGE data.  The full-head image is required so that Talairach
     registration has correct head geometry.
 
@@ -164,24 +164,24 @@ def inject_brain_mask(
     brain_mask_edited: str = None,
 ) -> Path:
     """
-    Inject the nighres brain mask into the FreeSurfer subject directory.
+    Inject the brain mask into the FreeSurfer subject directory.
 
     Workflow
     --------
     1. Backup existing brainmask.mgz (if present).
-    2. Resample the nighres mask (or edited override) to T1.mgz space using
+    2. Resample the mask (or edited override) to T1.mgz space using
        nearest-neighbour interpolation.
-    3. Compute:  brainmask = (nighres_mask > 0) * T1
+    3. Compute:  brainmask = (brainmask > 0) * T1
        Zeros non-brain voxels while preserving T1 intensities inside the mask —
        the format FreeSurfer expects.  The T1.mgz affine and header are
        preserved so FreeSurfer sees a valid MGH volume.
     4. Write brainmask.mgz and brain.finalsurfs.manedit.mgz (checked by
        FreeSurfer during pial surface refinement).
-    5. Save the resampled nighres mask as brainmask_nighres.mgz for audit.
+    5. Save the resampled mask as brainmask_custom.mgz for audit.
 
     Parameters
     ----------
-    brain_mask        : nighres brain mask (.nii.gz)
+    brain_mask        : custom brain mask (.nii.gz)
     subjects_dir      : FreeSurfer SUBJECTS_DIR
     subject           : FreeSurfer subject label
     brain_mask_edited : Manually edited mask — overrides brain_mask if given
@@ -194,7 +194,7 @@ def inject_brain_mask(
     t1_mgz         = mri_path / 'T1.mgz'
     brainmask_mgz  = mri_path / 'brainmask.mgz'
     finalsurfs_mgz = mri_path / 'brain.finalsurfs.manedit.mgz'
-    nighres_mgz    = mri_path / 'brainmask_nighres.mgz'
+    custom_mgz    = mri_path / 'brainmask_custom.mgz'
 
     if not t1_mgz.exists():
         raise FileNotFoundError(
@@ -210,11 +210,11 @@ def inject_brain_mask(
 
     # Resample mask to T1.mgz space (nearest-neighbour) and save audit copy
     mask_mgh = resample_to_mgh(mask_to_use, t1_mgz)
-    mask_mgh.to_filename(str(nighres_mgz))
+    mask_mgh.to_filename(str(custom_mgz))
 
     # Load T1 to get data + geometry; load resampled mask for its data
     t1_img   = nib.load(str(t1_mgz))
-    mask_img = nib.load(str(nighres_mgz))
+    mask_img = nib.load(str(custom_mgz))
 
     brain_data = (
         (mask_img.get_fdata() > 0).astype(np.float32)
@@ -438,7 +438,7 @@ def run_freesurfer_stages(
     Parameters
     ----------
     uni_mpragised     : Full-head MPRAGEised UNI (.nii.gz)
-    brain_mask        : nighres brain mask (.nii.gz)
+    brain_mask        : brain mask (.nii.gz) (generated with software of personal preference - spm for now)
     subjects_dir      : FreeSurfer SUBJECTS_DIR
     subject           : FreeSurfer subject label
     brain_mask_edited : Manually edited brain mask — overrides brain_mask
@@ -618,7 +618,7 @@ def _build_parser() -> argparse.ArgumentParser:
                    help='Full-head MPRAGEised UNI (.nii.gz) — '
                         'brain mask is injected after autorecon1')
     p.add_argument('--brain-mask', required=True,
-                   help='nighres brain mask (.nii.gz)')
+                   help='brain mask (.nii.gz)')
     p.add_argument('--subjects-dir', required=True,
                    help='FreeSurfer SUBJECTS_DIR')
     p.add_argument('--subject', required=True,

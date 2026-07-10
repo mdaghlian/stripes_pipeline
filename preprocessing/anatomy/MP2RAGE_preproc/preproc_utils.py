@@ -28,6 +28,9 @@ FreeSurfer helpers
     launch_freeview       Open freeview non-blocking (silently skips if absent)
 
 MP2RAGE preprocessing steps
+
+*** *** FULL RANGE OF EXPLORED OPTIONS *** ***
+OUTDATED 
     spm_bias_correct      Step 0  – SPM bias-field correction
     mprage_ise            Step 1  – MPRAGEise (background suppression)
     cat12_seg             Step 1d – CAT12 segmentation
