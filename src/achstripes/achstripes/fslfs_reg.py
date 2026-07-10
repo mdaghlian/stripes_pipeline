@@ -108,7 +108,7 @@ def fslfs_func2anat_vals(func_array, sub, reg_dir, func_ref, interp='trilin'):
     temp_func_img = nib.Nifti1Image(
         func_array.astype(np.float32), affine=rnib_ref.affine, ) #header=func_ref_img.header)
     nib.save(temp_func_img, temp_func_file)
-    func2anat(temp_func_file,sub, reg_dir, interp=interp)
+    fslfs_func2anat(temp_func_file,sub, reg_dir, interp=interp)
     out_nib = nib.load(temp_func_file.replace('.nii.gz', 'al.nii.gz'))
     out_data = out_nib.get_fdata()
     os.unlink(temp_func_file)
@@ -176,7 +176,7 @@ def fslfs_func2surf_vals(func_array, sub, reg_dir, func_ref, interp='trilin', he
     nib.save(temp_func_img, temp_func_file)
 
     # Project to surface for each hemisphere
-    out_files = func2surf(temp_func_file, sub, reg_dir, interp=interp, hemi_list=hemi_list)
+    out_files = fslfs_func2surf(temp_func_file, sub, reg_dir, interp=interp, hemi_list=hemi_list)
 
     # Load and concatenate surface data across hemispheres -> shape (n_vx,)
     hemi_arrays = []
