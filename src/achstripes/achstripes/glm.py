@@ -88,14 +88,20 @@ def mean_betas_from_runs(betas, nruns, beta_order,):
     tbsplit = np.array_split(betas, nruns, axis=-1)
 
     betas_full = {}
+    betas_run = {}
     for k in beta_order.keys():
         # for this condition...
+        betas_full[k] = []
+        betas_run[k] = []
         for iR in range(nruns):
             # take all of the trials matching this condition
             # - for each run 
+            rk_betas = []
             for ibeta in beta_order[k]:
                 betas_full[k].append(tbsplit[iR][:,:,:,ibeta])
+                rk_betas.append(tbsplit[iR][:,:,:,ibeta])
+            betas_run[k].append(np.nanmean(rk_betas, axis=0))
         # average them over everything...
         # we could be more sophisticated later and do Rsq? 
         betas_full[k] = np.nanmean(betas_full[k], axis=0)
-    
+    return betas_full, betas_run
