@@ -13,7 +13,7 @@ env = dict(
     SUBJECTS_DIR=os.environ['SUBJECTS_DIR'],
 )
 
-def load_spm_aligned(moco_folder):
+def load_spm_aligned(moco_folder, task='colour'):
     """
     Load SPM aligned data from the moco_folder.
     Args:
@@ -24,8 +24,16 @@ def load_spm_aligned(moco_folder):
     rfiles_ = os.listdir(
         moco_folder
     )
-    rfiles = [opj(moco_folder,f) for f in rfiles_ if (f.endswith('bold.nii') and f.startswith('rsub')) ]
-    rfiles = [f for f in rfiles if 'accordion' not in f]
+    rfiles = []
+    for f in rfiles_:
+        bold_test = f.endswith('bold.nii')
+        align_test = f.startswith('rsub')
+        accord_test = 'accordion' not in f
+        task_test = task in f
+        if bold_test & align_test & accord_test & task_test:
+            rfiles.append(opj(moco_folder,f))
+    # rfiles = [opj(moco_folder,f) for f in rfiles_ if (f.endswith('bold.nii') and f.startswith('rsub')) ]
+    # rfiles = [f for f in rfiles if 'accordion' not in f]
     rfiles.sort()
     return rfiles
 
