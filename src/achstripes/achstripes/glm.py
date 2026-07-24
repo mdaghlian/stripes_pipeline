@@ -15,7 +15,7 @@ env = dict(
 )
 
 
-def dm_from_path(dm_path, tn_trs, t_tr, dur=30):
+def dm_from_path(dm_path, tn_trs, t_tr, dur=30,):
     tdm_mat = sio.loadmat(dm_path)
     dm_conds = [str(i[0]) for i in tdm_mat['names'][0]]
     ons = {}
@@ -41,22 +41,36 @@ def dm_from_path(dm_path, tn_trs, t_tr, dur=30):
         'ons' : ons,
         'dmatrix' : dmatrix, 
     }
+    print(cond_list)
+    # bw_vals = [(v, 'bw', i) for i, v in enumerate(ons['bw'])]
+    # col_vals = [(v, 'colour', i) for i, v in enumerate(ons['colour'])]
+    # all_vals = sorted(bw_vals + col_vals, key=lambda x: x[0])
+    # bw_order = [None] * len(ons['bw'])
+    # col_order = [None] * len(ons['colour'])
+    # for rank, (val, source, original_idx) in enumerate(all_vals):
+    #     if source == 'bw':
+    #         bw_order[original_idx] = rank
+    #     else:
+    #         col_order[original_idx] = rank
 
-    bw_vals = [(v, 'bw', i) for i, v in enumerate(ons['bw'])]
-    col_vals = [(v, 'colour', i) for i, v in enumerate(ons['colour'])]
+    # beta_order = {'bw': bw_order, 'col': col_order}
+    
+    cond_list.sort()
+    c_vals = {}
+    for c in cond_list:
+        c_vals[c] = [(v, c, i) for i, v in enumerate(ons[c])]
 
-    all_vals = sorted(bw_vals + col_vals, key=lambda x: x[0])
-
-    bw_order = [None] * len(ons['bw'])
-    col_order = [None] * len(ons['colour'])
-
+    all_vals = sorted(c_vals[cond_list[0]]+c_vals[cond_list[1]], key=lambda x: x[0])
+    c1_order = [None] * len(ons[cond_list[0]])
+    c2_order = [None] * len(ons[cond_list[1]])
     for rank, (val, source, original_idx) in enumerate(all_vals):
-        if source == 'bw':
-            bw_order[original_idx] = rank
+        if source == cond_list[0]:
+            c1_order[original_idx] = rank
         else:
-            col_order[original_idx] = rank
+            c2_order[original_idx] = rank
 
-    beta_order = {'bw': bw_order, 'col': col_order}
+    beta_order = {cond_list[0]: c1_order, cond_list[1]: c2_order}
+
     return t_dmatrix_info, beta_order
 
 
