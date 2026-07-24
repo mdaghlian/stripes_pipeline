@@ -1,6 +1,7 @@
 *.nii.gz
 *.nii
 *.DS_store*
+**/z_/*
 # ** 
 # Byte-compiled / optimized / DLL files
 __pycache__/
