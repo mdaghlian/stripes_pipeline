@@ -16,6 +16,12 @@ env = dict(
 
 
 def fslfs_reg(sub, anat_ref, func_ref, reg_dir):
+    run_cmd(
+        ['fslreorient2std', func_ref, func_ref],
+        env_vars=env,
+        work_dir=BIDS_DIR,
+        docker_image=fsl_fs_docker,
+    )    
     if not os.path.exists(reg_dir):
         os.makedirs(reg_dir)
     reg_dat = opj(reg_dir, 'bbreg.dat')
@@ -117,7 +123,7 @@ def fslfs_func2anat_vals(func_array, sub, reg_dir, func_ref, interp='trilin'):
 
 
 
-def fslfs_func2surf(func, sub, reg_dir, interp='trilin', hemi_list=['lh', 'rh']):
+def fslfs_func2surf(func, sub, reg_dir, interp='trilin', hemi_list=['lh', 'rh'], proj_str=['--projcfrac-avg', '0.2', '0.8', '0.1']):
     run_cmd(
         ['fslreorient2std', func, func],
         env_vars=env,
@@ -126,7 +132,6 @@ def fslfs_func2surf(func, sub, reg_dir, interp='trilin', hemi_list=['lh', 'rh'])
     )
     reg_lta = opj(reg_dir, 'tmp.lta')
     reg_dat = opj(reg_dir, 'bbreg.dat')
-
     # First register func -> anat (same as func2anat)
     run_cmd(
         [
@@ -151,7 +156,7 @@ def fslfs_func2surf(func, sub, reg_dir, interp='trilin', hemi_list=['lh', 'rh'])
                 '--reg', reg_lta,
                 '--hemi', hemi,
                 '--interp', interp,
-                '--projfrac-avg', '0.2', '0.8', '0.1',
+                *proj_str, 
                 '--o', out,
                 '--cortex',
             ],
@@ -164,7 +169,7 @@ def fslfs_func2surf(func, sub, reg_dir, interp='trilin', hemi_list=['lh', 'rh'])
     return out_files
 
 
-def fslfs_func2surf_vals(func_array, sub, reg_dir, func_ref, interp='trilin', hemi_list=['lh', 'rh']):
+def fslfs_func2surf_vals(func_array, sub, reg_dir, func_ref, interp='trilin', hemi_list=['lh', 'rh'], proj_str=['--projcfrac-avg', '0.2', '0.8', '0.1']):
     # Find reference func file to copy header/affine from
     rnib_ref = nib.load(func_ref)
 
@@ -176,7 +181,7 @@ def fslfs_func2surf_vals(func_array, sub, reg_dir, func_ref, interp='trilin', he
     nib.save(temp_func_img, temp_func_file)
 
     # Project to surface for each hemisphere
-    out_files = fslfs_func2surf(temp_func_file, sub, reg_dir, interp=interp, hemi_list=hemi_list)
+    out_files = fslfs_func2surf(temp_func_file, sub, reg_dir, interp=interp, hemi_list=hemi_list,proj_str=proj_str)
 
     # Load and concatenate surface data across hemispheres -> shape (n_vx,)
     hemi_arrays = []
